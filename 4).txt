@@ -1,0 +1,78 @@
+4)
+
+#include "ns3/core-module.h"
+#include "ns3/network-module.h"
+#include "ns3/internet-module.h"
+#include "ns3/point-to-point-module.h"
+#include "ns3/applications-module.h"
+#include "ns3/netanim-module.h"
+#include "ns3/ipv4-address-helper.h"
+#include "ns3/ipv4-global-routing-helper.h"
+
+using namespace ns3;
+
+int main (int argc, char *argv[])
+{
+  CommandLine C;
+  C.Parse (argc, argv);
+
+  NodeContainer N;
+  N.Create (5);                      // 0-1-2-3-4
+
+
+  InternetStackHelper S;
+  S.Install (N);
+
+  PointToPointHelper P;
+  P.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
+  P.SetChannelAttribute ("Delay", StringValue ("5ms"));
+
+  NetDeviceContainer D01 = P.Install (N.Get (0), N.Get (1));
+  NetDeviceContainer D12 = P.Install (N.Get (1), N.Get (2));
+  NetDeviceContainer D23 = P.Install (N.Get (2), N.Get (3));
+  NetDeviceContainer D34 = P.Install (N.Get (3), N.Get (4));
+
+
+  Ipv4AddressHelper A;
+  A.SetBase ("10.1.1.0", "255.255.255.0");
+  Ipv4InterfaceContainer I01 = A.Assign (D01);
+  A.SetBase ("10.1.2.0", "255.255.255.0");
+  Ipv4InterfaceContainer I12 = A.Assign (D12);
+  A.SetBase ("10.1.3.0", "255.255.255.0");
+  Ipv4InterfaceContainer I23 = A.Assign (D23);
+  A.SetBase ("10.1.4.0", "255.255.255.0");
+  Ipv4InterfaceContainer I34 = A.Assign (D34);
+
+  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+
+
+
+  uint16_t p = 9;
+  UdpEchoServerHelper SV (p);
+  ApplicationContainer Sa = SV.Install (N.Get (1));   // server on node 1
+  Sa.Start (Seconds (1));
+  Sa.Stop  (Seconds (10));
+
+  Ipv4Address srv = I01.GetAddress (1);               // node1 ka IP link 0–1 par
+  UdpEchoClientHelper CL (srv, p);
+  CL.SetAttribute ("MaxPackets", UintegerValue (10));
+  CL.SetAttribute ("Interval", TimeValue (Seconds (1)));
+  CL.SetAttribute ("PacketSize", UintegerValue (1024));
+  ApplicationContainer Ca = CL.Install (N.Get (0));   // client node 0
+  Ca.Start (Seconds (2));
+  Ca.Stop  (Seconds (10));
+
+  AsciiTraceHelper As;
+  P.EnableAsciiAll (As.CreateFileStream ("bus.tr"));
+
+  AnimationInterface anim ("bus.xml");
+  anim.SetConstantPosition (N.Get (0), 100, 100);
+  anim.SetConstantPosition (N.Get (1), 200, 100);
+  anim.SetConstantPosition (N.Get (2), 300, 100);
+  anim.SetConstantPosition (N.Get (3), 400, 100);
+  anim.SetConstantPosition (N.Get (4), 500, 100);
+
+  Simulator::Run ();
+  Simulator::Destroy ();
+  return 0;
+}

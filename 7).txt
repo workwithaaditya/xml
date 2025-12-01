@@ -1,0 +1,59 @@
+7)
+
+
+#include "ns3/core-module.h"
+#include "ns3/network-module.h"
+#include "ns3/internet-module.h"
+#include "ns3/point-to-point-module.h"
+#include "ns3/applications-module.h"
+#include "ns3/netanim-module.h"
+using namespace ns3;
+
+int main(int argc, char *argv[])
+{
+  CommandLine C;
+  C.Parse(argc, argv);
+
+  NodeContainer N;
+  N.Create(2);
+
+  InternetStackHelper S;
+  S.Install(N);
+
+
+  PointToPointHelper P;
+  P.SetDeviceAttribute("DataRate", StringValue("10Mbps"));
+  P.SetChannelAttribute("Delay", StringValue("2ms"));
+
+  NetDeviceContainer D = P.Install(N);
+
+  Ipv4AddressHelper A;
+  A.SetBase("10.1.1.0", "255.255.255.0");
+  Ipv4InterfaceContainer I = A.Assign(D);
+
+
+  uint16_t p = 9;
+  UdpServerHelper SV(p);
+  ApplicationContainer Sa = SV.Install(N.Get(1));
+  Sa.Start(Seconds(1));
+  Sa.Stop (Seconds(10));
+
+  UdpClientHelper CL(I.GetAddress(1), p);
+  CL.SetAttribute("MaxPackets", UintegerValue(10));
+  CL.SetAttribute("Interval",  TimeValue(Seconds(1)));
+  CL.SetAttribute("PacketSize", UintegerValue(1024));
+  ApplicationContainer Ca = CL.Install(N.Get(0));
+  Ca.Start(Seconds(2));
+  Ca.Stop (Seconds(10));
+
+  AsciiTraceHelper ascii;
+  P.EnableAsciiAll(ascii.CreateFileStream("udp.tr"));
+
+  AnimationInterface anim("udp.xml");
+  anim.SetConstantPosition(N.Get(0), 0, 0);
+  anim.SetConstantPosition(N.Get(1), 50, 0);
+
+  Simulator::Run();
+  Simulator::Destroy();
+  return 0;
+}
